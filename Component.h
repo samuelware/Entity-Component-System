@@ -31,8 +31,10 @@ namespace ECS
         */
         Entity* getParent() const;
 
-    private:
+    public:
         int parent;
+
+    private:
         EntitySystemManager* ecs;
     };
 }

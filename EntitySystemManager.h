@@ -7,6 +7,7 @@
 #include <list>
 #include <map>
 #include <typeindex>
+#include <SFML/Window/Event.hpp>
 
 namespace ECS
 {
@@ -36,6 +37,8 @@ namespace ECS
         * lets you perform an operation on multiple entities of a certain type.
         */
         std::vector<Entity*> getEntitiesByGroup(const int group);
+
+        void handleEvent(const sf::Event& event);
 
         /**
         * This is where all systems and components are updated, and any dead entities are removed.

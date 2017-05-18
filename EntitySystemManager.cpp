@@ -34,6 +34,13 @@ namespace ECS
         return entity_ptrs;
     }
 
+    void EntitySystemManager::handleEvent(const sf::Event& event)
+    {
+        for (auto& system : systems)
+            if (system.second->active)
+                system.second->handleEvent(event);
+    }
+
     /**
     * This is where all systems and components are updated, and any dead entities are removed.
     */
@@ -50,9 +57,9 @@ namespace ECS
         // Remove any dead entities.
         entities.erase(std::remove_if(entities.begin(), entities.end(),
             [](const Entity& entity)
-        {
-            return !entity.alive;
-        }
+            {
+                return !entity.alive;
+            }
         ), entities.end());
     }
 }

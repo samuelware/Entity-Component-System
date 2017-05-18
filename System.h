@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <vector>
 #include <utility>
+#include <SFML/Window/Event.hpp>
 #include "Component.h"
 #include "Entity.h"
 
@@ -20,6 +21,7 @@ namespace ECS
         GenericSystem(const std::type_index& component);
         bool operator==(const std::type_index& component);
 
+        virtual void handleEvent(const sf::Event& event) {}
         virtual void update(const float dt) {}
         virtual void removeDeadComponents() {}
 

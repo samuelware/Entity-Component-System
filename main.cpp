@@ -2,95 +2,135 @@
 #include <SFML/Graphics.hpp>
 #include "EntityComponentSystem.h"
 
-class PositionComponent : public ECS::BaseComponent, public sf::Vector2f { using sf::Vector2f::Vector2; };
-class PositionSystem : public ECS::BaseSystem<PositionComponent> {};
+class TransformComponent : public ECS::BaseComponent { public: sf::Transformable transform; };
+class TransformSystem : public ECS::BaseSystem<TransformComponent> {};
 
-class VelocityComponent : public ECS::BaseComponent, public sf::Vector2f { using sf::Vector2f::Vector2; };
-class VelocitySystem : public ECS::BaseSystem<VelocityComponent> {};
+class SpriteComponent : public ECS::BaseComponent { public: sf::Sprite sprite; };
+class SpriteSystem : public ECS::BaseSystem<SpriteComponent> {};
 
-class MovementComponent : public ECS::BaseComponent {};
-class MovementSystem : public ECS::BaseSystem<MovementComponent>
+class ShapeComponent : public ECS::BaseComponent { public: sf::RectangleShape shape; };
+class ShapeSystem : public ECS::BaseSystem<ShapeComponent> {};
+
+class DrawableComponent : public ECS::BaseComponent {};
+class DrawableSystem : public ECS::BaseSystem<DrawableComponent>, public sf::Drawable
 {
 public:
-    void update(const float dt)
+    void draw(sf::RenderTarget& target, sf::RenderStates states) const
     {
         for (auto& c : components)
         {
-            PositionComponent& position = *c.getParent()->getComponent<PositionComponent>();
-            VelocityComponent& velocity = *c.getParent()->getComponent<VelocityComponent>();
+            ECS::Entity* entity = c.getParent();
+            TransformComponent& transform = *entity->getComponent<TransformComponent>();
+            sf::Drawable* drawable = nullptr;
 
-            position += velocity * dt;
+            if (entity->hasComponent<SpriteComponent>())
+                drawable = &entity->getComponent<SpriteComponent>()->sprite;
+            else if (entity->hasComponent<ShapeComponent>())
+                drawable = &entity->getComponent<ShapeComponent>()->shape;
+
+            if (drawable)
+            {
+                sf::RenderStates own_states = states.transform * transform.transform.getTransform();
+                target.draw(*drawable, own_states);
+            }
         }
     }
 };
 
-class ShapeComponent : public ECS::BaseComponent, public sf::RectangleShape { using sf::RectangleShape::RectangleShape; };
-class ShapeSystem : public ECS::BaseSystem<ShapeComponent>, public sf::Drawable
+class VelocityComponent : public ECS::BaseComponent { public: sf::Vector2f velocity; };
+class VelocitySystem : public ECS::BaseSystem<VelocityComponent>
 {
 public:
     void update(const float dt)
     {
         for (auto& c : components)
         {
-            PositionComponent& position = *c.getParent()->getComponent<PositionComponent>();
-            c.setPosition(position);
+            TransformComponent& transform = *c.getParent()->getComponent<TransformComponent>();
+            transform.transform.move(c.velocity * dt);
         }
     }
-
-    void draw(sf::RenderTarget& target, sf::RenderStates) const
-    {
-        for (auto& c : components)
-            target.draw(c);
-    }
 };
 
-class PlayerComponent : public ECS::BaseComponent
+class InputComponent : public ECS::BaseComponent { public: float speed = 200.0f; };
+class InputSystem : public ECS::BaseSystem<InputComponent>
 {
 public:
-    float speed = 250.0f;
-};
-class PlayerSystem : public ECS::BaseSystem<PlayerComponent>
-{
-public:
-    void update(const float dt)
+    void handleEvent(const sf::Event& event)
     {
         for (auto& c : components)
         {
-            ECS::Entity* player = c.getParent();
-            VelocityComponent& velocity = *player->getComponent<VelocityComponent>();
+            ECS::Entity* entity = c.getParent();
+            VelocityComponent& velocity = *entity->getComponent<VelocityComponent>();
 
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
-                velocity.x = -c.speed;
-            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
-                velocity.x = c.speed;
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-                velocity.y = -c.speed;
-            else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-                velocity.y = c.speed;
+            if (event.type == sf::Event::KeyPressed)
+            {
+                switch (event.key.code)
+                {
+                case sf::Keyboard::Left: velocity.velocity.x = -c.speed; break;
+                case sf::Keyboard::Right: velocity.velocity.x = c.speed; break;
+                case sf::Keyboard::Up: velocity.velocity.y = -c.speed; break;
+                case sf::Keyboard::Down: velocity.velocity.y = c.speed; break;
+                default: break;
+                }
+            }
+            else if (event.type == sf::Event::KeyReleased)
+            {
+                switch (event.key.code)
+                {
+                case sf::Keyboard::Left:
+                case sf::Keyboard::Right: velocity.velocity.x = 0.0f; break;
+                case sf::Keyboard::Up:
+                case sf::Keyboard::Down: velocity.velocity.y = 0.0f; break;
+                default: break;
+                }
+            }
         }
     }
 };
 
 enum Groups
 {
-    Player
+    Player,
+    Bullet
 };
+
+void createPlayer(ECS::EntitySystemManager& manager)
+{
+    ECS::Entity* entity = manager.addEntity(Groups::Player);
+    entity->addComponent<TransformComponent>();
+    entity->addComponent<SpriteComponent>();
+    entity->addComponent<DrawableComponent>();
+    entity->addComponent<InputComponent>();
+    entity->addComponent<VelocityComponent>()->velocity = { 20.0f, 20.0f };
+}
+
+void createBullet(ECS::EntitySystemManager& manager, const sf::Vector2f& position)
+{
+    ECS::Entity* entity = manager.addEntity(Groups::Bullet);
+    entity->addComponent<VelocityComponent>()->velocity = { 50.0f, 0.0f };
+    entity->addComponent<ShapeComponent>()->shape.setSize(sf::Vector2f(20.0f, 20.0f));
+    entity->addComponent<DrawableComponent>();
+    TransformComponent& transform = *entity->addComponent<TransformComponent>();
+
+    transform.transform.setOrigin(10.0f, 10.0f);
+    transform.transform.setPosition(position);
+}
 
 int main()
 {
     ECS::EntitySystemManager manager;
-    manager.addSystem<PositionSystem>();
+    manager.addSystem<TransformSystem>();
+    manager.addSystem<SpriteSystem>();
+    manager.addSystem<ShapeSystem>();
     manager.addSystem<VelocitySystem>();
-    manager.addSystem<MovementSystem>();
-    ShapeSystem& shapes = *manager.addSystem<ShapeSystem>();
-    manager.addSystem<PlayerSystem>();
+    manager.addSystem<InputSystem>();
+    DrawableSystem& drawables = *manager.addSystem<DrawableSystem>();
 
-    ECS::Entity* player = manager.addEntity(Groups::Player);
-    player->addComponent<PositionComponent>(sf::Vector2f(100.0f, 100.0f));
-    player->addComponent<VelocityComponent>(sf::Vector2f(150.0f, 0.0f));
-    player->addComponent<MovementComponent>();
-    player->addComponent<ShapeComponent>(sf::Vector2f(100.0f, 100.0f));
-    player->addComponent<PlayerComponent>();
+    createPlayer(manager);
+
+    sf::Texture texture;
+    texture.loadFromFile("Player.png");
+    manager.getEntitiesByGroup(Groups::Player)[0]->getComponent<SpriteComponent>()->sprite.setTexture(texture);
 
     sf::RenderWindow window(sf::VideoMode(640, 480), "ECS");
     window.setFramerateLimit(60);
@@ -107,12 +147,15 @@ int main()
         {
             if (event.type == sf::Event::Closed)
                 window.close();
+            else if (event.type == sf::Event::MouseButtonPressed)
+                createBullet(manager, { static_cast<float>(event.mouseButton.x), static_cast<float>(event.mouseButton.y) });
+            manager.handleEvent(event);
         }
 
         manager.update(dt);
 
         window.clear();
-        window.draw(shapes);
+        window.draw(drawables);
         window.display();
     }
 
