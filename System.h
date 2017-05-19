@@ -49,20 +49,20 @@ namespace ECS
         * This method adds a component to the system and provide arguments for the component's constructor.
         */
         template <typename ...Args>
-        ComponentType* addComponent(const int parent, EntitySystemManager* ecs, Args&& ...args)
+        ComponentType& addComponent(const int parent, EntitySystemManager* ecs, Args&& ...args)
         {
             components.emplace_back(std::forward<Args>(args)...);
             components.back().setParent(parent);
             components.back().setECS(ecs);
-            return &components.back();
+            return components.back();
         }
 
         /**
         * This method returns a pointer to the component belonging to the parent.
         */
-        ComponentType* getComponent(const int parent)
+        ComponentType& getComponent(const int parent)
         {
-            return &(*std::find(components.begin(), components.end(), parent));
+            return *std::find(components.begin(), components.end(), parent);
         }
 
         /**
@@ -84,7 +84,7 @@ namespace ECS
             components.erase(std::remove_if(components.begin(), components.end(),
                 [](const ComponentType& component)
                 {
-                    return !component.getParent()->alive;
+                    return !component.getParent().alive;
                 }
             ), components.end());
         }

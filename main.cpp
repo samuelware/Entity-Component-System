@@ -19,19 +19,22 @@ public:
     {
         for (auto& c : components)
         {
-            ECS::Entity* entity = c.getParent();
-            TransformComponent& transform = *entity->getComponent<TransformComponent>();
-            sf::Drawable* drawable = nullptr;
-
-            if (entity->hasComponent<SpriteComponent>())
-                drawable = &entity->getComponent<SpriteComponent>()->sprite;
-            else if (entity->hasComponent<ShapeComponent>())
-                drawable = &entity->getComponent<ShapeComponent>()->shape;
-
-            if (drawable)
+            ECS::Entity& entity = c.getParent();
+            if (entity.alive)
             {
-                sf::RenderStates own_states = states.transform * transform.transform.getTransform();
-                target.draw(*drawable, own_states);
+                TransformComponent& transform = entity.getComponent<TransformComponent>();
+                sf::Drawable* drawable = nullptr;
+
+                if (entity.hasComponent<SpriteComponent>())
+                    drawable = &entity.getComponent<SpriteComponent>().sprite;
+                else if (entity.hasComponent<ShapeComponent>())
+                    drawable = &entity.getComponent<ShapeComponent>().shape;
+
+                if (drawable)
+                {
+                    sf::RenderStates own_states = states.transform * transform.transform.getTransform();
+                    target.draw(*drawable, own_states);
+                }
             }
         }
     }
@@ -45,8 +48,12 @@ public:
     {
         for (auto& c : components)
         {
-            TransformComponent& transform = *c.getParent()->getComponent<TransformComponent>();
-            transform.transform.move(c.velocity * dt);
+            ECS::Entity& entity = c.getParent();
+            if (entity.alive)
+            {
+                TransformComponent& transform = entity.getComponent<TransformComponent>();
+                transform.transform.move(c.velocity * dt);
+            }
         }
     }
 };
@@ -59,30 +66,56 @@ public:
     {
         for (auto& c : components)
         {
-            ECS::Entity* entity = c.getParent();
-            VelocityComponent& velocity = *entity->getComponent<VelocityComponent>();
-
-            if (event.type == sf::Event::KeyPressed)
+            ECS::Entity& entity = c.getParent();
+            if (entity.alive)
             {
-                switch (event.key.code)
+                VelocityComponent& velocity = entity.getComponent<VelocityComponent>();
+
+                if (event.type == sf::Event::KeyPressed)
                 {
-                case sf::Keyboard::Left: velocity.velocity.x = -c.speed; break;
-                case sf::Keyboard::Right: velocity.velocity.x = c.speed; break;
-                case sf::Keyboard::Up: velocity.velocity.y = -c.speed; break;
-                case sf::Keyboard::Down: velocity.velocity.y = c.speed; break;
-                default: break;
+                    switch (event.key.code)
+                    {
+                    case sf::Keyboard::Left: velocity.velocity.x = -c.speed; break;
+                    case sf::Keyboard::Right: velocity.velocity.x = c.speed; break;
+                    case sf::Keyboard::Up: velocity.velocity.y = -c.speed; break;
+                    case sf::Keyboard::Down: velocity.velocity.y = c.speed; break;
+                    default: break;
+                    }
+                }
+                else if (event.type == sf::Event::KeyReleased)
+                {
+                    switch (event.key.code)
+                    {
+                    case sf::Keyboard::Left:
+                    case sf::Keyboard::Right: velocity.velocity.x = 0.0f; break;
+                    case sf::Keyboard::Up:
+                    case sf::Keyboard::Down: velocity.velocity.y = 0.0f; break;
+                    default: break;
+                    }
                 }
             }
-            else if (event.type == sf::Event::KeyReleased)
+        }
+    }
+};
+
+class KillTimerComponent : public ECS::BaseComponent
+{
+public:
+    float time, timer = 0.0f;
+};
+class KillTimerSystem : public ECS::BaseSystem<KillTimerComponent>
+{
+public:
+    void update(const float dt)
+    {
+        for (auto& c : components)
+        {
+            ECS::Entity& entity = c.getParent();
+            if (entity.alive)
             {
-                switch (event.key.code)
-                {
-                case sf::Keyboard::Left:
-                case sf::Keyboard::Right: velocity.velocity.x = 0.0f; break;
-                case sf::Keyboard::Up:
-                case sf::Keyboard::Down: velocity.velocity.y = 0.0f; break;
-                default: break;
-                }
+                c.timer += dt;
+                if (c.timer >= c.time)
+                    entity.alive = false;
             }
         }
     }
@@ -96,24 +129,28 @@ enum Groups
 
 void createPlayer(ECS::EntitySystemManager& manager)
 {
-    ECS::Entity* entity = manager.addEntity(Groups::Player);
-    entity->addComponent<TransformComponent>();
-    entity->addComponent<SpriteComponent>();
-    entity->addComponent<DrawableComponent>();
-    entity->addComponent<InputComponent>();
-    entity->addComponent<VelocityComponent>()->velocity = { 20.0f, 20.0f };
+    ECS::Entity& entity = manager.addEntity(Groups::Player);
+    entity.addComponent<TransformComponent>();
+    entity.addComponent<SpriteComponent>();
+    entity.addComponent<DrawableComponent>();
+    entity.addComponent<InputComponent>();
+    entity.addComponent<VelocityComponent>().velocity = { 20.0f, 20.0f };
 }
 
 void createBullet(ECS::EntitySystemManager& manager, const sf::Vector2f& position)
 {
-    ECS::Entity* entity = manager.addEntity(Groups::Bullet);
-    entity->addComponent<VelocityComponent>()->velocity = { 50.0f, 0.0f };
-    entity->addComponent<ShapeComponent>()->shape.setSize(sf::Vector2f(20.0f, 20.0f));
-    entity->addComponent<DrawableComponent>();
-    TransformComponent& transform = *entity->addComponent<TransformComponent>();
-
+    ECS::Entity& entity = manager.addEntity(Groups::Bullet);
+    entity.addComponent<VelocityComponent>().velocity = { 50.0f, 0.0f };
+    entity.addComponent<DrawableComponent>();
+    entity.addComponent<KillTimerComponent>().time = 2.5f;
+    TransformComponent& transform = entity.addComponent<TransformComponent>();
+    ShapeComponent& shape = entity.addComponent<ShapeComponent>();
+    
     transform.transform.setOrigin(10.0f, 10.0f);
     transform.transform.setPosition(position);
+
+    shape.shape.setSize(sf::Vector2f(20.0f, 20.0f));
+    shape.shape.setFillColor(sf::Color::Red);
 }
 
 int main()
@@ -124,13 +161,14 @@ int main()
     manager.addSystem<ShapeSystem>();
     manager.addSystem<VelocitySystem>();
     manager.addSystem<InputSystem>();
-    DrawableSystem& drawables = *manager.addSystem<DrawableSystem>();
+    manager.addSystem<KillTimerSystem>();
+    DrawableSystem& drawables = manager.addSystem<DrawableSystem>();
 
     createPlayer(manager);
 
     sf::Texture texture;
     texture.loadFromFile("Player.png");
-    manager.getEntitiesByGroup(Groups::Player)[0]->getComponent<SpriteComponent>()->sprite.setTexture(texture);
+    manager.getEntitiesByGroup(Groups::Player)[0]->getComponent<SpriteComponent>().sprite.setTexture(texture);
 
     sf::RenderWindow window(sf::VideoMode(640, 480), "ECS");
     window.setFramerateLimit(60);

@@ -25,12 +25,12 @@ namespace ECS
         * This method adds an entity to the manager and returns a pointer
         * to the entity. Pointers will become invalid when another entity is added.
         */
-        Entity* addEntity(const int group);
+        Entity& addEntity(const int group);
 
         /**
         * This method gets an entity by its ID. This is used by Components to get entities.
         */
-        Entity* getEntityByID(const int id);
+        Entity& getEntityByID(const int id);
 
         /**
         * This method returns a vector of pointers to entities by their group. This
@@ -49,13 +49,13 @@ namespace ECS
         * This method adds a system to the manager. It also returns a pointer to the system.
         */
         template <typename SystemType>
-        SystemType* addSystem()
+        SystemType& addSystem()
         {
             static_assert(std::is_base_of<GenericSystem, SystemType>::value, "'SystemType' must inherit 'GenericSystem'.");
             assert(!hasSystem<SystemType>());
             SystemType* system = new SystemType();
             systems[std::type_index(typeid(SystemType))] = std::unique_ptr<SystemType>(system);
-            return system;
+            return *system;
         }
 
         /**

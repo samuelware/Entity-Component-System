@@ -26,7 +26,7 @@ namespace ECS
         * responsible for that specific component.
         */
         template <typename ComponentType, typename ...Args>
-        ComponentType* addComponent(Args&& ...args)
+        ComponentType& addComponent(Args&& ...args)
         {
             static_assert(std::is_base_of<BaseComponent, ComponentType>::value, "'ComponentType' must inherit 'BaseComponent'.");
             assert(!hasComponent<ComponentType>());
@@ -54,7 +54,7 @@ namespace ECS
         * specific component.
         */
         template <typename ComponentType>
-        ComponentType* getComponent()
+        ComponentType& getComponent()
         {
             static_assert(std::is_base_of<BaseComponent, ComponentType>::value, "'ComponentType' must inherit 'BaseComponent'.");
             assert(hasComponent<ComponentType>());

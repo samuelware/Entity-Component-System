@@ -7,18 +7,18 @@ namespace ECS
     * This method adds an entity to the manager and returns a pointer
     * to the entity. Pointers will become invalid when another entity is added.
     */
-    Entity* EntitySystemManager::addEntity(const int group)
+    Entity& EntitySystemManager::addEntity(const int group)
     {
         entities.emplace_back(this, ids++, group);
-        return &entities.back();
+        return entities.back();
     }
 
     /**
     * This method gets an entity by its ID. This is used by Components to get entities.
     */
-    Entity* EntitySystemManager::getEntityByID(const int id)
+    Entity& EntitySystemManager::getEntityByID(const int id)
     {
-        return &(*std::find(entities.begin(), entities.end(), id));
+        return *std::find(entities.begin(), entities.end(), id);
     }
 
     /**
@@ -47,12 +47,10 @@ namespace ECS
     void EntitySystemManager::update(const float dt)
     {
         for (auto& system : systems)
-        {
             if (system.second->active)
                 system.second->update(dt);
+        for (auto& system : systems)
             system.second->removeDeadComponents();
-        }
-
 
         // Remove any dead entities.
         entities.erase(std::remove_if(entities.begin(), entities.end(),

@@ -29,12 +29,10 @@ namespace ECS
         /**
         * This operator gets the parent for the component.
         */
-        Entity* getParent() const;
-
-    public:
-        int parent;
+        Entity& getParent() const;
 
     private:
+        int parent;
         EntitySystemManager* ecs;
     };
 }
